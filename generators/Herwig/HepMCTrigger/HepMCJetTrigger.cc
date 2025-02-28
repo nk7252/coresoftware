@@ -91,14 +91,14 @@ int HepMCJetTrigger::Init(PHCompositeNode *topNode)
 //____________________________________________________________________________..
 int HepMCJetTrigger::InitRun(PHCompositeNode *topNode)
 {
-  std::cout << "HepMCJetTrigger::InitRun(PHCompositeNode *topNode) Initializing for Run XXX" << std::endl;
+  //std::cout << "HepMCJetTrigger::InitRun(PHCompositeNode *topNode) Initializing for Run XXX" << std::endl;
   return Fun4AllReturnCodes::EVENT_OK;
 }
 
 //____________________________________________________________________________..
 int HepMCJetTrigger::process_event(PHCompositeNode *topNode)
 {
-  std::cout << "HepMCJetTrigger::process_event(PHCompositeNode *topNode) Processing Event" << std::endl;
+  //std::cout << "HepMCJetTrigger::process_event(PHCompositeNode *topNode) Processing Event" << std::endl;
   	PHHepMCGenEventMap* phg=findNode::getClass<PHHepMCGenEventMap>(topNode, "PHHepMCGenEventMap");
 	if(!phg){
 		return Fun4AllReturnCodes::ABORTEVENT;
@@ -117,35 +117,35 @@ int HepMCJetTrigger::process_event(PHCompositeNode *topNode)
 //____________________________________________________________________________..
 int HepMCJetTrigger::ResetEvent(PHCompositeNode *topNode)
 {
-  std::cout << "HepMCJetTrigger::ResetEvent(PHCompositeNode *topNode) Resetting internal structures, prepare for next event" << std::endl;
+  //std::cout << "HepMCJetTrigger::ResetEvent(PHCompositeNode *topNode) Resetting internal structures, prepare for next event" << std::endl;
   return Fun4AllReturnCodes::EVENT_OK;
 }
 
 //____________________________________________________________________________..
 int HepMCJetTrigger::EndRun(const int runnumber)
 {
-  std::cout << "HepMCJetTrigger::EndRun(const int runnumber) Ending Run for Run " << runnumber << std::endl;
+  //std::cout << "HepMCJetTrigger::EndRun(const int runnumber) Ending Run for Run " << runnumber << std::endl;
   return Fun4AllReturnCodes::EVENT_OK;
 }
 
 //____________________________________________________________________________..
 int HepMCJetTrigger::End(PHCompositeNode *topNode)
 {
-  std::cout << "HepMCJetTrigger::End(PHCompositeNode *topNode) This is the End..." << std::endl;
+  //std::cout << "HepMCJetTrigger::End(PHCompositeNode *topNode) This is the End..." << std::endl;
   return Fun4AllReturnCodes::EVENT_OK;
 }
 
 //____________________________________________________________________________..
 int HepMCJetTrigger::Reset(PHCompositeNode *topNode)
 {
- std::cout << "HepMCJetTrigger::Reset(PHCompositeNode *topNode) being Reset" << std::endl;
+  //std::cout << "HepMCJetTrigger::Reset(PHCompositeNode *topNode) being Reset" << std::endl;
   return Fun4AllReturnCodes::EVENT_OK;
 }
 
 //____________________________________________________________________________..
 void HepMCJetTrigger::Print(const std::string &what) const
 {
-  std::cout << "HepMCJetTrigger::Print(const std::string &what) const Printing info for " << what << std::endl;
+  //std::cout << "HepMCJetTrigger::Print(const std::string &what) const Printing info for " << what << std::endl;
 }
 bool HepMCJetTrigger::isGoodEvent( HepMC::GenEvent* e1)
 {
