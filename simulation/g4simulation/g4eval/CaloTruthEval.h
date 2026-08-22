@@ -88,6 +88,9 @@ class CaloTruthEval
   /// is this a primary particle?
   bool is_primary(PHG4Particle* particle);
 
+  /// is this an sPHENIX primary particle?
+  bool is_sPHENIX_primary(PHG4Particle* particle);
+
   /// how much energy did this primary and its shower deposit in the calo volume?
   float get_shower_energy_deposit(PHG4Particle* primary);
 

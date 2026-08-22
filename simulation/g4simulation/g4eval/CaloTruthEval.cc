@@ -120,6 +120,11 @@ bool CaloTruthEval::is_primary(PHG4Particle* particle)
   return _basetrutheval.is_primary(particle);
 }
 
+bool CaloTruthEval::is_sPHENIX_primary(PHG4Particle* particle)
+{
+  return _basetrutheval.is_sPHENIX_primary(particle);
+}
+
 float CaloTruthEval::get_shower_energy_deposit(PHG4Particle* primary)
 {
   if (!has_reduced_node_pointers())
