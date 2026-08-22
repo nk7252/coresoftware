@@ -1179,7 +1179,7 @@ float CaloRawTowerEval::get_energy_contribution(RawTower* tower, PHG4Particle* p
     return std::numeric_limits<float>::quiet_NaN();
   }
 
-  if (!_trutheval.is_primary(primary))
+  if (!_trutheval.is_sPHENIX_primary(primary))
   {
     return std::numeric_limits<float>::quiet_NaN();
   }
@@ -1243,7 +1243,7 @@ float CaloRawTowerEval::get_energy_contribution(TowerInfo* tower, PHG4Particle* 
     return std::numeric_limits<float>::quiet_NaN();
   }
 
-  if (!_trutheval.is_primary(primary))
+  if (!_trutheval.is_sPHENIX_primary(primary))
   {
     return std::numeric_limits<float>::quiet_NaN();
   }

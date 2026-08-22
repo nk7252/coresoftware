@@ -156,6 +156,27 @@ bool BaseTruthEval::is_primary(PHG4Particle* particle)
   return is_primary;
 }
 
+bool BaseTruthEval::is_sPHENIX_primary(PHG4Particle* particle)
+{
+  if (!has_reduced_node_pointers())
+  {
+    ++m_Errors;
+    return false;
+  }
+
+  if (m_Strict)
+  {
+    assert(particle);
+  }
+  else if (!particle)
+  {
+    ++m_Errors;
+    return false;
+  }
+
+  return m_TruthInfo->is_sPHENIX_primary(particle);
+}
+
 PHG4Shower* BaseTruthEval::get_primary_shower(PHG4Shower* shower)
 {
   if (!has_reduced_node_pointers())

@@ -45,6 +45,9 @@ class BaseTruthEval
   /// is this a primary particle?
   bool is_primary(PHG4Particle* particle);
 
+  /// is this an sPHENIX primary particle?
+  bool is_sPHENIX_primary(PHG4Particle* particle);
+
   /// what was the primary shower for this possibly secondary shower?
   PHG4Shower* get_primary_shower(PHG4Shower* shower);
 
