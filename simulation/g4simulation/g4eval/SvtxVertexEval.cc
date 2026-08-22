@@ -415,7 +415,7 @@ void SvtxVertexEval::get_node_pointers(PHCompositeNode* topNode)
   {
     _vertexmap = findNode::getClass<SvtxVertexMap>(topNode, "SvtxVertexMapActs");  // Acts vertices
   }
-  if (!_vertexmap)
+  if (!_vertexmap && _verbosity > 0)
   {
     std::cout << PHWHERE << "Did not find_vertexmap on node tree" << std::endl;
   }
