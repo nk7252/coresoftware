@@ -11,6 +11,12 @@
 #include <calobase/RawClusterContainer.h>
 #include <calobase/RawTower.h>
 #include <calobase/RawTowerContainer.h>
+#include <calobase/RawTowerDefs.h>
+#include <calobase/RawTowerGeom.h>
+#include <calobase/RawTowerGeomContainer.h>
+#include <calobase/TowerInfo.h>
+#include <calobase/TowerInfoContainer.h>
+#include <calobase/TowerInfoDefs.h>
 
 #include <jetbase/Jet.h>
 #include <jetbase/JetContainer.h>
@@ -23,6 +29,7 @@
 #include <phool/getClass.h>
 #include <phool/phool.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cfloat>
 #include <cmath>
@@ -76,6 +83,87 @@ void JetRecoEval::set_track_nodename(const std::string& name)
   _jettrutheval.set_track_nodename(name);
 }
 
+void JetRecoEval::build_cemc_retower_map()
+{
+  if (!_cemc_retower_map.empty())
+  {
+    return;
+  }
+  if (!_cemctowerinfos || !_cemcretowerinfos || !_cemcgeom || !_hcalingeom)
+  {
+    std::cout << PHWHERE << "ERROR: can't build CEMC retower map" << std::endl;
+    exit(-1);
+  }
+
+  for (int ieta_ihcal = 0; ieta_ihcal < _hcalingeom->get_etabins(); ++ieta_ihcal)
+  {
+    const std::pair<double, double> ihcal_bounds = _hcalingeom->get_etabounds(ieta_ihcal);
+    for (int ieta_emcal = 0; ieta_emcal < _cemcgeom->get_etabins(); ++ieta_emcal)
+    {
+      const std::pair<double, double> emcal_bounds = _cemcgeom->get_etabounds(ieta_emcal);
+      const double overlap = std::min(ihcal_bounds.second, emcal_bounds.second) -
+                             std::max(ihcal_bounds.first, emcal_bounds.first);
+      if (overlap <= 0)
+      {
+        continue;
+      }
+      const float fraction = overlap / (emcal_bounds.second - emcal_bounds.first);
+
+      for (int iphi_emcal = 0; iphi_emcal < _cemcgeom->get_phibins(); ++iphi_emcal)
+      {
+        const RawTowerDefs::keytype geomkey = RawTowerDefs::encode_towerid(
+            RawTowerDefs::CalorimeterId::CEMC, ieta_emcal, iphi_emcal);
+        RawTowerGeom* towergeom = _cemcgeom->get_tower_geometry(geomkey);
+        const int iphi_ihcal = _hcalingeom->get_phibin(towergeom->get_phi());
+
+        const unsigned int emcalkey = TowerInfoDefs::encode_emcal(ieta_emcal, iphi_emcal);
+        const unsigned int emcalchannel = _cemctowerinfos->decode_key(emcalkey);
+        const unsigned int retowerkey = TowerInfoDefs::encode_hcal(ieta_ihcal, iphi_ihcal);
+        const unsigned int retowerchannel = _cemcretowerinfos->decode_key(retowerkey);
+        _cemc_retower_map[retowerchannel].push_back(std::make_pair(emcalchannel, fraction));
+      }
+    }
+  }
+}
+
+TowerInfoContainer* JetRecoEval::get_towerinfo_container(Jet::SRC source)
+{
+  if (source == Jet::CEMC_TOWERINFO)
+  {
+    return _cemctowerinfos;
+  }
+  if (source == Jet::CEMC_TOWERINFO_RETOWER)
+  {
+    return _cemcretowerinfos;
+  }
+  if (source == Jet::HCALIN_TOWERINFO)
+  {
+    return _hcalintowerinfos;
+  }
+  if (source == Jet::HCALOUT_TOWERINFO)
+  {
+    return _hcalouttowerinfos;
+  }
+  return nullptr;
+}
+
+CaloEvalStack* JetRecoEval::get_towerinfo_eval_stack(Jet::SRC source)
+{
+  if (source == Jet::CEMC_TOWERINFO)
+  {
+    return get_cemc_eval_stack();
+  }
+  if (source == Jet::HCALIN_TOWERINFO)
+  {
+    return get_hcalin_eval_stack();
+  }
+  if (source == Jet::HCALOUT_TOWERINFO)
+  {
+    return get_hcalout_eval_stack();
+  }
+  return nullptr;
+}
+
 std::set<PHG4Shower*> JetRecoEval::all_truth_showers(Jet* recojet)
 {
   if (_strict)
@@ -125,6 +213,46 @@ std::set<PHG4Shower*> JetRecoEval::all_truth_showers(Jet* recojet)
       // new_showers = get_svtx_eval_stack()->get_track_eval()->all_truth_showers(track);
     }
 
+    else if (source == Jet::CEMC_TOWERINFO_RETOWER)
+    {
+      build_cemc_retower_map();
+      for (const auto& [channel, fraction] : _cemc_retower_map[index])
+      {
+        TowerInfo* tower = _cemctowerinfos->get_tower_at_channel(channel);
+        if (!tower || !tower->get_isGood() || fraction <= 0)
+        {
+          continue;
+        }
+        const std::set<PHG4Shower*> showers = get_cemc_eval_stack()->get_rawtower_eval()->all_truth_primary_showers(tower);
+        new_showers.insert(showers.begin(), showers.end());
+      }
+    }
+    else if (source == Jet::CEMC_TOWERINFO ||
+             source == Jet::HCALIN_TOWERINFO ||
+             source == Jet::HCALOUT_TOWERINFO)
+    {
+      TowerInfoContainer* towerinfos = get_towerinfo_container(source);
+      CaloEvalStack* evalstack = get_towerinfo_eval_stack(source);
+      if (!towerinfos || !evalstack)
+      {
+        std::cout << PHWHERE << "ERROR: can't find TowerInfo input for source " << source << std::endl;
+        exit(-1);
+      }
+
+      TowerInfo* tower = towerinfos->get_tower_at_channel(index);
+
+      if (_strict)
+      {
+        assert(tower);
+      }
+      else if (!tower)
+      {
+        ++_errors;
+        continue;
+      }
+
+      new_showers = evalstack->get_rawtower_eval()->all_truth_primary_showers(tower);
+    }
     else if (source == Jet::CEMC_TOWER)
     {
       if (!_cemctowers)
@@ -458,6 +586,46 @@ std::set<PHG4Particle*> JetRecoEval::all_truth_particles(Jet* recojet)
       }
 
       new_particles = get_svtx_eval_stack()->get_track_eval()->all_truth_particles(track);
+    }
+    else if (source == Jet::CEMC_TOWERINFO_RETOWER)
+    {
+      build_cemc_retower_map();
+      for (const auto& [channel, fraction] : _cemc_retower_map[index])
+      {
+        TowerInfo* tower = _cemctowerinfos->get_tower_at_channel(channel);
+        if (!tower || !tower->get_isGood() || fraction <= 0)
+        {
+          continue;
+        }
+        const std::set<PHG4Particle*> particles = get_cemc_eval_stack()->get_rawtower_eval()->all_truth_primary_particles(tower);
+        new_particles.insert(particles.begin(), particles.end());
+      }
+    }
+    else if (source == Jet::CEMC_TOWERINFO ||
+             source == Jet::HCALIN_TOWERINFO ||
+             source == Jet::HCALOUT_TOWERINFO)
+    {
+      TowerInfoContainer* towerinfos = get_towerinfo_container(source);
+      CaloEvalStack* evalstack = get_towerinfo_eval_stack(source);
+      if (!towerinfos || !evalstack)
+      {
+        std::cout << PHWHERE << "ERROR: can't find TowerInfo input for source " << source << std::endl;
+        exit(-1);
+      }
+
+      TowerInfo* tower = towerinfos->get_tower_at_channel(index);
+
+      if (_strict)
+      {
+        assert(tower);
+      }
+      else if (!tower)
+      {
+        ++_errors;
+        continue;
+      }
+
+      new_particles = evalstack->get_rawtower_eval()->all_truth_primary_particles(tower);
     }
     else if (source == Jet::CEMC_TOWER)
     {
@@ -1091,6 +1259,45 @@ float JetRecoEval::get_energy_contribution(Jet* recojet, Jet* truthjet)
           energy = track->get_p();
         }
       }
+      else if (source == Jet::CEMC_TOWERINFO_RETOWER)
+      {
+        build_cemc_retower_map();
+        for (const auto& [channel, fraction] : _cemc_retower_map[index])
+        {
+          TowerInfo* tower = _cemctowerinfos->get_tower_at_channel(channel);
+          if (!tower || !tower->get_isGood() || fraction <= 0)
+          {
+            continue;
+          }
+          energy += fraction * get_cemc_eval_stack()->get_rawtower_eval()->get_energy_contribution(tower, truthparticle);
+        }
+      }
+      else if (source == Jet::CEMC_TOWERINFO ||
+               source == Jet::HCALIN_TOWERINFO ||
+               source == Jet::HCALOUT_TOWERINFO)
+      {
+        TowerInfoContainer* towerinfos = get_towerinfo_container(source);
+        CaloEvalStack* evalstack = get_towerinfo_eval_stack(source);
+        if (!towerinfos || !evalstack)
+        {
+          std::cout << PHWHERE << "ERROR: can't find TowerInfo input for source " << source << std::endl;
+          exit(-1);
+        }
+
+        TowerInfo* tower = towerinfos->get_tower_at_channel(index);
+
+        if (_strict)
+        {
+          assert(tower);
+        }
+        else if (!tower)
+        {
+          ++_errors;
+          continue;
+        }
+
+        energy = evalstack->get_rawtower_eval()->get_energy_contribution(tower, truthparticle);
+      }
       else if (source == Jet::CEMC_TOWER)
       {
         RawTower* tower = _cemctowers->getTower(index);
@@ -1334,6 +1541,32 @@ float JetRecoEval::get_energy_contribution(Jet* recojet, Jet::SRC src)
     {
       SvtxTrack* track = _trackmap->get(index);
       energy += track->get_p();
+    }
+    else if (source == Jet::CEMC_TOWERINFO ||
+             source == Jet::CEMC_TOWERINFO_RETOWER ||
+             source == Jet::HCALIN_TOWERINFO ||
+             source == Jet::HCALOUT_TOWERINFO)
+    {
+      TowerInfoContainer* towerinfos = get_towerinfo_container(source);
+      if (!towerinfos)
+      {
+        std::cout << PHWHERE << "ERROR: can't find TowerInfo input for source " << source << std::endl;
+        exit(-1);
+      }
+
+      TowerInfo* tower = towerinfos->get_tower_at_channel(index);
+
+      if (_strict)
+      {
+        assert(tower);
+      }
+      else if (!tower)
+      {
+        ++_errors;
+        continue;
+      }
+
+      energy += tower->get_energy();
     }
     else if (source == Jet::CEMC_TOWER)
     {
@@ -1593,6 +1826,46 @@ std::set<PHG4Hit*> JetRecoEval::all_truth_hits(Jet* recojet)
       }
 
       new_hits = get_svtx_eval_stack()->get_track_eval()->all_truth_hits(track);
+    }
+    else if (source == Jet::CEMC_TOWERINFO_RETOWER)
+    {
+      build_cemc_retower_map();
+      for (const auto& [channel, fraction] : _cemc_retower_map[index])
+      {
+        TowerInfo* tower = _cemctowerinfos->get_tower_at_channel(channel);
+        if (!tower || !tower->get_isGood() || fraction <= 0)
+        {
+          continue;
+        }
+        const std::set<PHG4Hit*> hits = get_cemc_eval_stack()->get_rawtower_eval()->all_truth_hits(tower);
+        new_hits.insert(hits.begin(), hits.end());
+      }
+    }
+    else if (source == Jet::CEMC_TOWERINFO ||
+             source == Jet::HCALIN_TOWERINFO ||
+             source == Jet::HCALOUT_TOWERINFO)
+    {
+      TowerInfoContainer* towerinfos = get_towerinfo_container(source);
+      CaloEvalStack* evalstack = get_towerinfo_eval_stack(source);
+      if (!towerinfos || !evalstack)
+      {
+        std::cout << PHWHERE << "ERROR: can't find TowerInfo input for source " << source << std::endl;
+        exit(-1);
+      }
+
+      TowerInfo* tower = towerinfos->get_tower_at_channel(index);
+
+      if (_strict)
+      {
+        assert(tower);
+      }
+      else if (!tower)
+      {
+        ++_errors;
+        continue;
+      }
+
+      new_hits = evalstack->get_rawtower_eval()->all_truth_hits(tower);
     }
     else if (source == Jet::CEMC_TOWER)
     {
@@ -1896,8 +2169,14 @@ void JetRecoEval::get_node_pointers(PHCompositeNode* topNode)
     _trackmap = findNode::getClass<SvtxTrackMap>(topNode, "TrackMap");
   }
   _cemctowers = findNode::getClass<RawTowerContainer>(topNode, "TOWER_CALIB_CEMC");
+  _cemctowerinfos = findNode::getClass<TowerInfoContainer>(topNode, "TOWERINFO_CALIB_CEMC");
+  _cemcretowerinfos = findNode::getClass<TowerInfoContainer>(topNode, "TOWERINFO_CALIB_CEMC_RETOWER");
+  _cemcgeom = findNode::getClass<RawTowerGeomContainer>(topNode, "TOWERGEOM_CEMC");
+  _hcalingeom = findNode::getClass<RawTowerGeomContainer>(topNode, "TOWERGEOM_HCALIN");
   _hcalintowers = findNode::getClass<RawTowerContainer>(topNode, "TOWER_CALIB_HCALIN");
+  _hcalintowerinfos = findNode::getClass<TowerInfoContainer>(topNode, "TOWERINFO_CALIB_HCALIN");
   _hcalouttowers = findNode::getClass<RawTowerContainer>(topNode, "TOWER_CALIB_HCALOUT");
+  _hcalouttowerinfos = findNode::getClass<TowerInfoContainer>(topNode, "TOWERINFO_CALIB_HCALOUT");
   _femctowers = findNode::getClass<RawTowerContainer>(topNode, "TOWER_CALIB_FEMC");
   _fhcaltowers = findNode::getClass<RawTowerContainer>(topNode, "TOWER_CALIB_FHCAL");
   _eemctowers = findNode::getClass<RawTowerContainer>(topNode, "TOWER_CALIB_EEMC");

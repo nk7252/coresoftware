@@ -9,6 +9,7 @@
 #include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
 class CaloEvalStack;
 
@@ -22,6 +23,8 @@ class PHG4Shower;
 
 class RawClusterContainer;
 class RawTowerContainer;
+class RawTowerGeomContainer;
+class TowerInfoContainer;
 
 class SvtxEvalStack;
 class SvtxTrackMap;
@@ -130,6 +133,9 @@ class JetRecoEval
 
  private:
   void get_node_pointers(PHCompositeNode* topNode);
+  void build_cemc_retower_map();
+  TowerInfoContainer* get_towerinfo_container(Jet::SRC source);
+  CaloEvalStack* get_towerinfo_eval_stack(Jet::SRC source);
 
   JetTruthEval _jettrutheval;
   std::string _recojetname;
@@ -140,10 +146,16 @@ class JetRecoEval
 
   SvtxTrackMap* _trackmap = nullptr;
   RawTowerContainer* _cemctowers = nullptr;
+  TowerInfoContainer* _cemctowerinfos = nullptr;
+  TowerInfoContainer* _cemcretowerinfos = nullptr;
+  RawTowerGeomContainer* _cemcgeom = nullptr;
+  RawTowerGeomContainer* _hcalingeom = nullptr;
   RawClusterContainer* _cemcclusters = nullptr;
   RawTowerContainer* _hcalintowers = nullptr;
+  TowerInfoContainer* _hcalintowerinfos = nullptr;
   RawClusterContainer* _hcalinclusters = nullptr;
   RawTowerContainer* _hcalouttowers = nullptr;
+  TowerInfoContainer* _hcalouttowerinfos = nullptr;
   RawClusterContainer* _hcaloutclusters = nullptr;
   RawTowerContainer* _femctowers = nullptr;
   RawClusterContainer* _femcclusters = nullptr;
@@ -166,6 +178,7 @@ class JetRecoEval
   std::map<std::pair<Jet*, Jet*>, float> _cache_get_energy_contribution;
   std::map<std::pair<Jet*, Jet::SRC>, float> _cache_get_energy_contribution_src;  /// used in get_energy_contribution (Jet* recojet, Jet::SRC src);
   std::map<Jet*, std::set<PHG4Hit*> > _cache_all_truth_hits;
+  std::map<unsigned int, std::vector<std::pair<unsigned int, float> > > _cemc_retower_map;
   std::string m_TrackNodeName = "SvtxTrackMap";
 };
 
